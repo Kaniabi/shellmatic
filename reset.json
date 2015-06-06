@@ -1,0 +1,59 @@
+{
+    "aliases": {
+        "vim:windows:path:vim": "$SHARED_DIR/vim/vim74/gvim.exe",
+        "vim:windows:path:vi": "$SHARED_DIR/vim/vim74/gvim.exe",
+
+        "deltree": "del /sxzqe",
+        "clear": "cls",
+        "cp": "copy",
+        "mv": "move",
+        "x": "start explorer"
+    },
+    "flags": [
+        "python"
+    ],
+    "calls": {
+        "git:git.lg" : "git config --global alias.lg \"log --oneline --graph --decorate -n20\"",
+        "git:git.st" : "git config --global alias.st \"status -b -s\""
+    },
+    "vars": {
+        "path:SHARED_DIR" : "d:/shared",
+        "path:PROJECTS_DIR" : "x:",
+
+        "text:VIRTUALENV" : "(no virtualenv)",
+        "text:nodep:PROMPT": "$e[36;2m$P$+$_$e[32;2m%%VIRTUALENV%%$e[0m $$$s",
+
+        "python:path:PYTHONHOME": "d:/shared/python27",
+        "python:pathlist:PATH": [
+          "$PYTHONHOME",
+          "$PYTHONHOME/scripts"
+        ],
+        "python:text:.py" : "python",
+
+        "git:text:HOME" : "$HOMEDRIVE$HOMEPATH",
+        "git:pathlist:PATH": [
+          "$SHARED_DIR/git/bin"
+        ],
+        "git:text:TERM" : "msys",
+
+        "java:path:JAVA_ROOT": "$SHARED_DIR/jre",
+        "java:path:JAVA_HOME": "$JAVA_ROOT",
+        "java:pathlist:PATH": [
+          "$JAVA_ROOT/bin"
+        ],
+
+        "ben10:pathlist:PYTHONPATH": [
+            "$PROJECTS_DIR/ben10/source/python"
+        ],
+        "ben10:pathlist:PATH": [
+            "$PROJECTS_DIR/ben10/scripts"
+        ],
+
+        "eladrin:pathlist:PYTHONPATH": [
+            "$PROJECTS_DIR/eladrin/bin"
+        ],
+        "eladrin:pathlist:PATH": [
+            "$PROJECTS_DIR/eladrin/bin"
+        ]
+    }
+}
