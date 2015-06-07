@@ -3,6 +3,7 @@ from ben10.filesystem import GetFileContents, NormalizePath, StandardizePath
 from ben10.foundation.decorators import Comparable
 from ben10.foundation.odict import odict
 import os
+import ntpath
 
 
 
@@ -146,7 +147,6 @@ class Shellmatic(object):
             :return unicode:
                 A platform-independent path.
             '''
-            import ntpath
             return StandardizePath(ntpath.normcase(value), strip=True)
 
 
@@ -163,7 +163,7 @@ class Shellmatic(object):
             '''
             result = []
             if not isinstance(value, (list,tuple)):
-                value = value.split(os.pathsep)
+                value = value.split(ntpath.pathsep)
             for i in map(cls._PathIn, value):
                 # Remove empty values and avoid duplicate values
                 if i and i not in result:
@@ -195,8 +195,6 @@ class Shellmatic(object):
 
         @classmethod
         def _PathOut(cls, value):
-            import ntpath
-
             assert isinstance(value, unicode)
             result = os.path.normcase(value)
             result = cls._ExpandEnvVars(result)
@@ -207,7 +205,7 @@ class Shellmatic(object):
         @classmethod
         def _PathListOut(cls, value):
             assert isinstance(value, list)
-            return os.pathsep.join(map(cls._PathOut, value))
+            return ntpath.pathsep.join(map(cls._PathOut, value))
 
 
         @classmethod
@@ -228,7 +226,7 @@ class Shellmatic(object):
             result = cls.DEFAULT_FLAGS.get(name)
             if result is not None:
                 return result
-            if os.pathsep in value:
+            if ntpath.pathsep in value:
                 # Wild and dangerous guess.
                 return {cls.TYPE_PATHLIST}
             return {cls.TYPE_PATH}
