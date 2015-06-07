@@ -23,61 +23,42 @@ class Shellmatic(object):
 
     @Comparable
     class EnvVar(object):
+        '''
+        Represents an environment variable, with special handling of flags for TYPES (text, path,
+        pathlist) and processing details (nodep).
+        '''
 
-        TEXT_NAMES = (
-            'TERM',
-            'PROMPT',
-            'HOME',
-            # Windows
-            'COMPUTERNAME',
-            'NUMBER_OF_PROCESSORS',
-            'PROCESSOR_ARCHITECTURE',
-            'PROCESSOR_IDENTIFIER',
-            'PROCESSOR_LEVEL',
-            'PROCESSOR_REVISION',
-            'OS',
-            'USERNAME',
-            'USERDOMAIN',
-            'PATHEXT',  # TCC?
-            # Eladrin
-            'VIRTUALENV',
-        )
-
-        PATHLIST_NAMES = (
-            'PATH',
-            'PYTHONPATH',
-            'LD_LIBRARY_PATH'
-        )
-
-        DEFAULT_FLAGS = {
-            'TERM' : {'text'},
-            'PROMPT' : {'text'},
-            'HOME' : {'text'},
-            'PATH' : {'pathlist'},
-            'PROMPT' : {'nodep'},
-            # Linux
-            'LD_LIBRARY_PATH' : {'pathlist'},
-            # Windows
-            'COMPUTERNAME' : {'text'},
-            'NUMBER_OF_PROCESSORS' : {'text'},
-            'PROCESSOR_ARCHITECTURE' : {'text'},
-            'PROCESSOR_IDENTIFIER' : {'text'},
-            'PROCESSOR_LEVEL' : {'text'},
-            'PROCESSOR_REVISION' : {'text'},
-            'OS' : {'text'},
-            'USERNAME' : {'text'},
-            'USERDOMAIN' : {'text'},
-            'PATHEXT' : {'text'},  # Take Command only?
-            # Eladrin
-            'VIRTUALENV' : {'text'},
-            # Python
-            'PYTHONPATH' : {'pathlist'},
-        }
+        FLAG_NODEP = 'nodep'
 
         TYPE_TEXT = 'text'
         TYPE_PATH = 'path'
         TYPE_PATHLIST = 'pathlist'
         TYPES = (TYPE_TEXT, TYPE_PATH, TYPE_PATHLIST)
+
+        DEFAULT_FLAGS = {
+            'TERM' : {TYPE_TEXT},
+            'PROMPT' : {TYPE_TEXT},
+            'HOME' : {TYPE_TEXT},
+            'PATH' : {TYPE_PATHLIST},
+            'PROMPT' : {FLAG_NODEP},
+            # Linux
+            'LD_LIBRARY_PATH' : {TYPE_PATHLIST},
+            # Windows
+            'COMPUTERNAME' : {TYPE_TEXT},
+            'NUMBER_OF_PROCESSORS' : {TYPE_TEXT},
+            'PROCESSOR_ARCHITECTURE' : {TYPE_TEXT},
+            'PROCESSOR_IDENTIFIER' : {TYPE_TEXT},
+            'PROCESSOR_LEVEL' : {TYPE_TEXT},
+            'PROCESSOR_REVISION' : {TYPE_TEXT},
+            'OS' : {TYPE_TEXT},
+            'USERNAME' : {TYPE_TEXT},
+            'USERDOMAIN' : {TYPE_TEXT},
+            'PATHEXT' : {TYPE_TEXT},  # Take Command only?
+            # Eladrin
+            'VIRTUALENV' : {TYPE_TEXT},
+            # Python
+            'PYTHONPATH' : {TYPE_PATHLIST},
+        }
 
         def __init__(self, name, value):
             self.flags, self.name = self._SplitName(name)
@@ -90,7 +71,7 @@ class Shellmatic(object):
 
 
         def __repr__(self):
-            flags = ':'.join(self.flags)
+            flags = ':'.join(sorted(self.flags))
             name = self.name
             return '<EnvVar %(flags)s:%(name)s>' % locals()
 
@@ -130,8 +111,8 @@ class Shellmatic(object):
 
             dependencies = []
 
-            if 'nodep' in self.flags:
-                return dependencies
+            if self.FLAG_NODEP in self.flags:
+                return set()
 
             for i in MakeList(self.value):
                 dependencies += re.findall('\$(\w+)', i)
@@ -165,7 +146,8 @@ class Shellmatic(object):
             :return unicode:
                 A platform-independent path.
             '''
-            return StandardizePath(os.path.normcase(value), strip=True)
+            import ntpath
+            return StandardizePath(ntpath.normcase(value), strip=True)
 
 
         @classmethod
@@ -195,7 +177,7 @@ class Shellmatic(object):
             Format OUTgoing value to export it properly.
             '''
             if cls.TYPE_TEXT in flags:
-                return cls._TextOut(value)
+                return cls._TextOut(flags, value)
             elif cls.TYPE_PATH in flags:
                 return cls._PathOut(value)
             elif cls.TYPE_PATHLIST in flags:
@@ -204,17 +186,21 @@ class Shellmatic(object):
 
 
         @classmethod
-        def _TextOut(cls, value):
+        def _TextOut(cls, flags, value):
             assert isinstance(value, unicode)
+            if cls.FLAG_NODEP in flags:
+                return value
             return cls._ExpandEnvVars(value)
 
 
         @classmethod
         def _PathOut(cls, value):
+            import ntpath
+
             assert isinstance(value, unicode)
             result = os.path.normcase(value)
             result = cls._ExpandEnvVars(result)
-            result = NormalizePath(result)
+            result = ntpath.normpath(result)
             return result
 
 
@@ -267,6 +253,7 @@ class Shellmatic(object):
                     flags.add(i)
             return flags, name
 
+    SECTION_ENVIRONMENT = 'environment'
 
     def __init__(self):
         self.environment = odict()
@@ -274,15 +261,13 @@ class Shellmatic(object):
         self.calls = odict()
 
 
-    def LoadEnvironment(self, environ=None):
+    def LoadEnvironment(self, environ=os.environ):
         '''
         Loads environment from the current environment.
 
         :param dict|None environ:
             An alternative to os.environ. Used for testing purposes.
         '''
-        if environ is None:
-            environ = os.environ
         for i_name, i_value in environ.iteritems():
             self.EnvironmentSet(i_name, i_value)
 
@@ -291,55 +276,48 @@ class Shellmatic(object):
         self.environment[name] = self.EnvVar(name, value)
 
 
-    def AsBatch(self):
+    def AsBatch(self, console_):
         '''
         :return unicode:
         '''
 
         def TopologicalSort(source):
             '''
-
-            Perform topo sort on elements.
-
-            :param list(unicode, object, set(unicode)) source:
+            :param list(unicode, set(unicode)) source:
             :return list(object):
             '''
+            defined = {i[0] for i in source}
             pending = source[:]
             emitted = []
             while pending:
                 next_pending = []
                 next_emitted = []
                 for entry in pending:
-                    name, value, deps = entry
+                    name, deps = entry
                     deps.difference_update(set((name,)), emitted) # <-- pop self from dep
-                    if deps:
+                    if deps & defined:  # <-- consider a cycle only between defined variables
                         next_pending.append(entry)
                     else:
-                        yield value
+                        yield name
                         emitted.append(name) # <-- not required, but preserves original order
                         next_emitted.append(name)
                 if not next_emitted:
-                    raise ValueError("Cyclic dependency detected: %s %r" % (name, (next_pending,)))
+                    dep = ','.join(next_pending[0][-1])
+                    raise ValueError('Cyclic dependency detected: %(dep)s (dependency of %(name)s).' % locals())
                 pending = next_pending
                 emitted = next_emitted
 
         # Groups env-vars by name
-        envvars_by_name = odict()
+        sources = {}
+        envvars = {}
         for i_envvar in self.environment.itervalues():
-            envvars_by_name.setdefault(i_envvar.name, []).append(i_envvar)
-
-        source = []
-        for i_name, i_envvars in sorted(envvars_by_name.iteritems()):
-            dependencies = set()
-            for j_envvar in i_envvars:
-                for k_dependency in j_envvar.GetDependencies():
-                    dependencies.add(k_dependency)
-            source.append((i_name, i_envvars, dependencies))
+            sources.setdefault(i_envvar.name, set()).update(i_envvar.GetDependencies())
+            envvars.setdefault(i_envvar.name, []).append(i_envvar)
 
         result = []
         seen = set()
-        for i_envvars in TopologicalSort(source):
-            for j_envvar in i_envvars:
+        for i_name in TopologicalSort(sorted(sources.items())):
+            for j_envvar in envvars[i_name]:
                 result.append(j_envvar.AsBatch(append=j_envvar.name in seen))
                 seen.add(j_envvar.name)
 
@@ -355,5 +333,5 @@ class Shellmatic(object):
         import json
         data = json.loads(GetFileContents(filename))
 
-        for i_name, i_value in data.get('vars', {}).iteritems():
+        for i_name, i_value in data.get(self.SECTION_ENVIRONMENT, {}).iteritems():
             self.EnvironmentSet(i_name, i_value)

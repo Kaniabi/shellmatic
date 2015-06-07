@@ -1,17 +1,58 @@
 from __future__ import unicode_literals
 from ben10.foundation.string import Dedent
+from ben10.foundation.types_ import Null
 from shellmatic import Shellmatic
 import os
+import pytest
 
 
 
-def testSplitName():
+def testEnvVarSplitName():
     assert Shellmatic.EnvVar._SplitName('PATH') == (set(), 'PATH')
     assert Shellmatic.EnvVar._SplitName('alpha:bravo:charlie:PATH') == ({'alpha','bravo','charlie'}, 'PATH')
     assert Shellmatic.EnvVar._SplitName('path:PATH') == ({'path'}, 'PATH')
 
 
-def testLoadEnvironment():
+def testEnvVarRepr():
+    assert repr(Shellmatic.EnvVar('PATH', '/usr/bin')) == '<EnvVar pathlist:PATH>'
+    assert repr(Shellmatic.EnvVar('windows:pathlist:PATH', 'c:/windows/system32')) == '<EnvVar pathlist:windows:PATH>'
+
+
+def testEnvVarCompare():
+    a = Shellmatic.EnvVar('ALPHA', '')
+    b = Shellmatic.EnvVar('BRAVO', '')
+    assert a < b
+
+    c = Shellmatic.EnvVar('ALPHA', '')
+    assert a == c
+
+    d = Shellmatic.EnvVar('path:windows:ALPHA', '')
+    assert a == d
+
+
+def testEnvVarGetDependencies():
+    a = Shellmatic.EnvVar('ALPHA', '$ALPHA/bravo/$CHARLIE')
+    assert a.GetDependencies() == {'ALPHA', 'CHARLIE'}
+
+    a = Shellmatic.EnvVar('nodep:ALPHA', '$ALPHA/bravo/$CHARLIE')
+    assert a.GetDependencies() == set()
+
+
+def testEnvVarAsBatch():
+    # Default type "path" will handle both slashes and environment variables expansions.
+    a = Shellmatic.EnvVar('ALPHA', '$ALPHA/bravo/$CHARLIE')
+    assert a.AsBatch() == 'set ALPHA=%ALPHA%\\bravo\\%CHARLIE%'
+
+    # Type "text" won't handle slashes ('/' -> '\')
+    a = Shellmatic.EnvVar('text:ALPHA', '$ALPHA/bravo/$CHARLIE')
+    assert a.AsBatch() == 'set ALPHA=%ALPHA%/bravo/%CHARLIE%'
+
+    # Flag "nodep" won't handle environment variables expansion ('$X' -> '%X%')
+    a = Shellmatic.EnvVar('text:nodep:ALPHA', '$ALPHA/bravo/$CHARLIE')
+    assert a.AsBatch() == 'set ALPHA=$ALPHA/bravo/$CHARLIE'
+
+
+def testLoadEnvironment(monkeypatch):
     s = Shellmatic()
 
     environ = {
@@ -19,6 +60,7 @@ def testLoadEnvironment():
         'PATHLIST' : 'x:/ALPHA;c:\Windows',
         b'BYTES' : b'alpha',
     }
+
     s.LoadEnvironment(environ)
 
     obtained = sorted([(i.name, i.flags, i.value) for i in s.environment.itervalues()])
@@ -89,7 +131,7 @@ def testEnvironmentSet():
     ]
     assert obtained == expected
 
-    assert s.AsBatch() == Dedent(
+    assert s.AsBatch(Null()) == Dedent(
         '''
         set ALPHA=Alpha
         set BRAVO=x:\\bravo\\directory\\folder
@@ -98,11 +140,22 @@ def testEnvironmentSet():
     )
 
 
+def testAsBatch():
+    s = Shellmatic()
+    s.EnvironmentSet('ALPHA', '$ZULU')
+    assert s.AsBatch(Null()) == 'set ALPHA=%ZULU%'
+
+    s.EnvironmentSet('ZULU', '$ALPHA')
+    with pytest.raises(ValueError):
+        s.AsBatch(Null())
+
+
 def testReset():
     s = Shellmatic()
     filename = os.path.join(os.path.dirname(__file__), 'test.json')
     s.LoadJson(filename)
-    assert s.AsBatch() == Dedent(
+    obtained = s.AsBatch(Null())
+    expected = Dedent(
         '''
         set PROJECTS_DIR=x:
         set SHARED_DIR=d:\\shared
@@ -111,6 +164,7 @@ def testReset():
         set PATH=%PATH%;%SHARED_DIR%\\jdk\\bin
         '''
     )
+    assert obtained == expected
 
 
 def testPathOut():

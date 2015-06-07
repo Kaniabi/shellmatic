@@ -1,5 +1,5 @@
 {
-    "vars": {
+    "environment": {
         "path:SHARED_DIR" : "d:/shared",
         "python:path:PYTHONHOME": "$shared_dir/python27",
         "path:PROJECTS_DIR" : "x:",
