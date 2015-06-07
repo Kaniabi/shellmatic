@@ -196,7 +196,7 @@ class Shellmatic(object):
         @classmethod
         def _PathOut(cls, value):
             assert isinstance(value, unicode)
-            result = os.path.normcase(value)
+            result = ntpath.normcase(value)
             result = cls._ExpandEnvVars(result)
             result = ntpath.normpath(result)
             return result
