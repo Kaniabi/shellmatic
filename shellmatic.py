@@ -2,8 +2,8 @@ from __future__ import unicode_literals
 from ben10.filesystem import GetFileContents, NormalizePath, StandardizePath
 from ben10.foundation.decorators import Comparable
 from ben10.foundation.odict import odict
-import os
 import ntpath
+import os
 
 
 
