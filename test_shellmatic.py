@@ -52,23 +52,25 @@ def testEnvVarAsBatch():
     assert a.AsBatch() == 'set ALPHA=$ALPHA/bravo/$CHARLIE'
 
 
-def testLoadEnvironment(monkeypatch):
+def testLoadEnvironment():
     s = Shellmatic()
 
     environ = {
-        'PATH' : r'X:\BEN10\source\python;;x:\eladrin\Bin;x:\tiefling10/source/python',
+        'PATH' : r'X:\BEN10\source\python;;x:\eladrin\Bin;x:/eladrin/bin;x:\tiefling10/source/python',
         'PATHLIST' : 'x:/ALPHA;c:\Windows',
         b'BYTES' : b'alpha',
     }
 
     s.LoadEnvironment(environ)
 
-    obtained = sorted([(i.name, i.flags, i.value) for i in s.environment.itervalues()])
+    obtained = sorted([(i.name, i.flags, i.value.AsList()) for i in s.environment.itervalues()])
     expected = [
         (
             'BYTES',
             {'path'},
-            'alpha'
+            [
+                'alpha'
+            ]
         ),
         (
             'PATH',
@@ -95,29 +97,33 @@ def testEnvironmentSet():
     s = Shellmatic()
 
     s.EnvironmentSet('text:ALPHA', 'Alpha')
-    obtained = sorted([(i.name, i.flags, i.value) for i in s.environment.itervalues()])
+    obtained = sorted([(i.name, i.flags, i.value.AsList()) for i in s.environment.itervalues()])
     expected = [
         (
             'ALPHA',
             {'text'},
-            'Alpha'
+            [
+                'Alpha'
+            ]
         ),
     ]
     assert obtained == expected
 
     s.EnvironmentSet('path:BRAVO', r'x:/Bravo\directory/FOLDER')
-    obtained = sorted([(i.name, i.flags, i.value) for i in s.environment.itervalues()])
+    obtained = sorted([(i.name, i.flags, i.value.AsList()) for i in s.environment.itervalues()])
     expected += [
         (
             'BRAVO',
             {'path'},
-            'x:/bravo/directory/folder'
+            [
+                'x:/bravo/directory/folder'
+            ]
         ),
     ]
     assert obtained == expected
 
     s.EnvironmentSet('pathlist:CHARLIE', r'x:/Charlie;c:\Windows;a:\Install')
-    obtained = sorted([(i.name, i.flags, i.value) for i in s.environment.itervalues()])
+    obtained = sorted([(i.name, i.flags, i.value.AsList()) for i in s.environment.itervalues()])
     expected += [
         (
             'CHARLIE',
@@ -167,7 +173,7 @@ def testReset():
     assert obtained == expected
 
 
-def testPathOut():
-    assert Shellmatic.EnvVar._PathOut('x:/Alpha\\Bravo/CHARLIE') == 'x:\\alpha\\bravo\\charlie'
-    assert Shellmatic.EnvVar._PathOut('$shared_dir/alpha') == '%SHARED_DIR%\\alpha'
-    assert Shellmatic.EnvVar._PathOut('$python_home;$python_home/scripts') == '%PYTHON_HOME%;%PYTHON_HOME%\\scripts'
+def testPathValueAsBatch():
+    assert Shellmatic.PathValue('x:/Alpha\\Bravo/CHARLIE').AsBatch() == 'x:\\alpha\\bravo\\charlie'
+    assert Shellmatic.PathValue('$shared_dir/alpha').AsBatch() == '%SHARED_DIR%\\alpha'
+    assert Shellmatic.PathValue('$python_home;$python_home/scripts').AsBatch() == '%PYTHON_HOME%;%PYTHON_HOME%\\scripts'

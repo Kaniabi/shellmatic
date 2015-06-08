@@ -2,6 +2,8 @@ from __future__ import unicode_literals
 from ben10.filesystem import GetFileContents, NormalizePath, StandardizePath
 from ben10.foundation.decorators import Comparable
 from ben10.foundation.odict import odict
+from ben10.foundation.reraise import Reraise
+from ben10.foundation.types_ import CheckType
 import ntpath
 import os
 
@@ -14,13 +16,187 @@ class EnvVarTypeError(TypeError):
     EnvVar.TYPE_XXX.
     '''
 
+
 #===================================================================================================
 # ConfigFile
 #===================================================================================================
 class Shellmatic(object):
     '''
-
+    Environment variables and aliases handling.
     '''
+
+    class ValueType(object):
+        pass
+
+    @Comparable
+    class TextValue(ValueType):
+
+        TYPENAME = 'text'
+
+        def __init__(self, text):
+            self.__text = text
+            assert isinstance(self.__text, unicode)
+
+        def _cmpkey(self):
+            '''
+            Implements Comparable._cmpkey
+            '''
+            return self.__text
+
+        def __unicode__(self):
+            return self.__text
+
+        def __repr__(self):
+            return '<TextValue %s>' % self.__unicode__()
+
+        def ExpandVars(self):
+            self.__text = os.path.expandvars(self.__text)
+
+        def AsList(self):
+            return [self.__text]
+
+        def AsBatch(self, expandvars=False, nodep=False):
+            '''
+            :param bool expandvars:
+                If True expand environment variables references in the returning value.
+                If False platformize environment variables references.
+            '''
+            if expandvars:
+                result = os.path.expandvars(self.__text)
+            elif nodep:
+                result = self.__text
+            else:
+                result = self._EnvVarReferencesOut(self.__text)
+            return result
+
+        def IsDir(self):
+            return os.path.isdir(os.path.expandvars(self.__path))
+
+        @classmethod
+        def _EnvVarReferencesOut(cls, value):
+            import re
+            return re.sub('\$(\w+)', lambda x: '%' + x.group(1).upper() + '%', value)
+
+
+    @Comparable
+    class PathValue(ValueType):
+
+        TYPENAME = 'path'
+
+        def __init__(self, path):
+            self.__path = StandardizePath(path, strip=True)
+            assert isinstance(self.__path, unicode)
+
+        def _cmpkey(self):
+            '''
+            Implements Comparable._cmpkey
+            '''
+            return StandardizePath(ntpath.normcase(self.__path))
+
+        def __unicode__(self):
+            return self.__path
+
+        def __repr__(self):
+            return '<PathValue %s>' % self.__unicode__()
+
+        @property
+        def path(self):
+            return self.__path
+
+        def ExpandVars(self):
+            self.__path = os.path.expandvars(self.__path)
+
+        def AsList(self):
+            return [self.__path.lower()]
+
+        def AsBatch(self, expandvars=False, nodep=False):
+            '''
+            :param bool expandvars:
+                If True expand environment variables references in the returning value.
+                If False platformize environment variables references.
+            '''
+            if expandvars:
+                result = os.path.expandvars(self.__path)
+            elif nodep:
+                result = ntpath.normpath(self.__path)
+            else:
+                result = ntpath.normpath(self.__path)
+                result = ntpath.normcase(result)
+                result = self._PlatformizeEnvVarsReferences(result)
+            return result
+
+        def IsDir(self):
+            return os.path.isdir(os.path.expandvars(self.__path))
+
+        @classmethod
+        def _PlatformizeEnvVarsReferences(cls, value):
+            import re
+            return re.sub('\$(\w+)', lambda x: '%' + x.group(1).upper() + '%', value)
+
+
+    @Comparable
+    class PathListValue(ValueType):
+
+        TYPENAME = 'pathlist'
+
+        def __init__(self, value):
+            self.__pathlist = []
+            if not isinstance(value, (list, tuple)):
+                value = value.split(ntpath.pathsep)
+            for i in value:
+                # Remove empty values and avoid duplicate values
+                if not i:
+                    continue
+                path = Shellmatic.PathValue(i)
+                if path in self.__pathlist:
+                    continue
+                self.__pathlist.append(path)
+
+        def _cmpkey(self):
+            '''
+            Implements Comparable._cmpkey
+            '''
+            return [i._cmpkey() for i in self.__pathlist]
+
+        def ExpandVars(self):
+            for i in self.pathlist:
+                i.ExpandVars()
+
+        def AsList(self):
+            result = []
+            for i in self.__pathlist:
+                result += i.AsList()
+            return result
+
+        def AsBatch(self, expandvars=False, nodep=False):
+            '''
+            :param bool expandvars:
+                If True expand environment variables references in the returning value.
+                If False platformize environment variables references.
+            '''
+            result = [i.AsBatch(expandvars=expandvars, nodep=nodep) for i in self.__pathlist]
+            return ntpath.pathsep.join(result)
+
+        def Remove(self, value):
+            if isinstance(value, unicode):
+                value = Shellmatic.PathValue(value)
+            CheckType(value, Shellmatic.PathValue)
+
+            new_pathlist = self.__pathlist[:]
+            try:
+                new_pathlist.remove(value)
+            except ValueError as e:
+                pathlist_items = '\n  - '.join(map(unicode,new_pathlist))
+                Reraise(
+                    e,
+                    'While trying to remove value "%s" from path-list:\n  - %s' % (
+                        value,
+                        pathlist_items
+                    )
+                )
+            self.__pathlist = new_pathlist
+
+
 
     @Comparable
     class EnvVar(object):
@@ -71,6 +247,24 @@ class Shellmatic(object):
             self.value = self._ValueIn(self.flags, value)
 
 
+        @classmethod
+        def _GetDefaultFlags(cls, name, value):
+            '''
+            Returns default flags for the given variable name and value.
+
+            :param unicode name:
+            :param unicode value:
+            :return set(unicode):
+            '''
+            result = cls.DEFAULT_FLAGS.get(name)
+            if result is not None:
+                return result
+            if ntpath.pathsep in value:
+                # Wild and dangerous guess. Let's see how thi behaves.
+                return {cls.TYPE_PATHLIST}
+            return {cls.TYPE_PATH}
+
+
         def __repr__(self):
             flags = ':'.join(sorted(self.flags))
             name = self.name
@@ -87,7 +281,7 @@ class Shellmatic(object):
             :return unicode:
             '''
             name = self.name
-            value = self._ValueOut(self.flags, self.value)
+            value = self.value.AsBatch(nodep=self.FLAG_NODEP in self.flags)
             if append:
                 format = 'set %(name)s=%%%(name)s%%;%(value)s'
             else:
@@ -96,6 +290,9 @@ class Shellmatic(object):
 
 
         def _cmpkey(self):
+            '''
+            Implements Comparable._cmpkey
+            '''
             return self.name
 
 
@@ -105,17 +302,12 @@ class Shellmatic(object):
             '''
             import re
 
-            def MakeList(value):
-                if isinstance(value, unicode):
-                    return [value]
-                return value
-
             dependencies = []
 
             if self.FLAG_NODEP in self.flags:
                 return set()
 
-            for i in MakeList(self.value):
+            for i in self.value.AsList():
                 dependencies += re.findall('\$(\w+)', i)
             return {i.upper() for i in dependencies}
 
@@ -127,109 +319,15 @@ class Shellmatic(object):
 
             Most important format path and pathlist to a platform-independent format.
             '''
-            if cls.TYPE_TEXT in flags:
+            if isinstance(value, Shellmatic.ValueType):
                 return value
-            elif cls.TYPE_PATH in flags:
-                return cls._PathIn(value)
-            elif cls.TYPE_PATHLIST in flags:
-                return cls._PathListIn(value)
-            raise EnvVarTypeError(flags)
-
-
-        @classmethod
-        def _PathIn(cls, value):
-            '''
-            Format INcomming path value to a platform-indepdent format.
-
-            :param unicode value:
-                A path.
-
-            :return unicode:
-                A platform-independent path.
-            '''
-            return StandardizePath(ntpath.normcase(value), strip=True)
-
-
-        @classmethod
-        def _PathListIn(cls, value):
-            '''
-            Format INcomming path-list value to a platform-indepdent format.
-
-            :param unicode|list(unicode)|tuple(unicode) value:
-                A path-list in a string or in a sequence.
-
-            :return list(unicode):
-                A list of platform-independent paths.
-            '''
-            result = []
-            if not isinstance(value, (list,tuple)):
-                value = value.split(ntpath.pathsep)
-            for i in map(cls._PathIn, value):
-                # Remove empty values and avoid duplicate values
-                if i and i not in result:
-                    result.append(i)
-            return result
-
-
-        @classmethod
-        def _ValueOut(cls, flags, value):
-            '''
-            Format OUTgoing value to export it properly.
-            '''
             if cls.TYPE_TEXT in flags:
-                return cls._TextOut(flags, value)
+                return Shellmatic.TextValue(value)
             elif cls.TYPE_PATH in flags:
-                return cls._PathOut(value)
+                return Shellmatic.PathValue(value)
             elif cls.TYPE_PATHLIST in flags:
-                return cls._PathListOut(value)
+                return Shellmatic.PathListValue(value)
             raise EnvVarTypeError(flags)
-
-
-        @classmethod
-        def _TextOut(cls, flags, value):
-            assert isinstance(value, unicode)
-            if cls.FLAG_NODEP in flags:
-                return value
-            return cls._ExpandEnvVars(value)
-
-
-        @classmethod
-        def _PathOut(cls, value):
-            assert isinstance(value, unicode)
-            result = ntpath.normcase(value)
-            result = cls._ExpandEnvVars(result)
-            result = ntpath.normpath(result)
-            return result
-
-
-        @classmethod
-        def _PathListOut(cls, value):
-            assert isinstance(value, list)
-            return ntpath.pathsep.join(map(cls._PathOut, value))
-
-
-        @classmethod
-        def _ExpandEnvVars(cls, value):
-            import re
-            return re.sub('\$(\w+)', lambda x: '%' + x.group(1).upper() + '%', value)
-
-
-        @classmethod
-        def _GetDefaultFlags(cls, name, value):
-            '''
-            Returns default flags for the given variable name and value.
-
-            :param unicode name:
-            :param unicode value:
-            :return set(unicode):
-            '''
-            result = cls.DEFAULT_FLAGS.get(name)
-            if result is not None:
-                return result
-            if ntpath.pathsep in value:
-                # Wild and dangerous guess.
-                return {cls.TYPE_PATHLIST}
-            return {cls.TYPE_PATH}
 
 
         @classmethod
@@ -274,8 +372,9 @@ class Shellmatic(object):
         self.environment[name] = self.EnvVar(name, value)
 
 
-    def AsBatch(self, console_):
+    def AsBatch(self, console_, append=False):
         '''
+        :param clikit.Console console_:
         :return unicode:
         '''
 
@@ -316,7 +415,9 @@ class Shellmatic(object):
         seen = set()
         for i_name in TopologicalSort(sorted(sources.items())):
             for j_envvar in envvars[i_name]:
-                result.append(j_envvar.AsBatch(append=j_envvar.name in seen))
+                do_append = append and self.EnvVar.TYPE_PATHLIST in j_envvar.flags
+                do_append = do_append or j_envvar.name in seen
+                result.append(j_envvar.AsBatch(append=do_append))
                 seen.add(j_envvar.name)
 
         return '\n'.join(result)
