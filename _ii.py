@@ -36,10 +36,7 @@ def Config():
 
         @property
         def batch_filename(self):
-            return os.environ.get(
-                'SHELLMATIC_BATCH',
-                _Shellmatic.EnvVar._PathOut('$TEMP/.shellmatic.bat')
-            )
+            return os.environ.get('SHELLMATIC_BATCH', '$TEMP/.shellmatic.bat')
 
         @property
         def environment_filename(self):
@@ -68,6 +65,25 @@ def Reset(console_, shellmatic_, config_, shared_dir=None, projects_dir=None, te
         console_.Print(batch_contents, indent=1)
     else:
         CreateFile(config_.batch_filename, batch_contents)
+
+
+@app
+def List(console_, shellmatic_):
+    """
+    List current shellmatic configuration.
+    """
+    console_.Print(LOGO)
+    shellmatic_.LoadEnvironment()
+
+    by_flags = {}
+    for i_name, i_envvar in sorted(shellmatic_.environment.iteritems()):
+        flags = ':'.join(sorted(i_envvar.flags))
+        by_flags.setdefault(flags, []).append(i_envvar)
+
+    for i_flags, i_envvars in sorted(by_flags.iteritems()):
+        console_.Print('<green>%s</>' % i_flags)
+        for j_envvar in i_envvars:
+            console_.Item('<white>%s</>: %s' % (j_envvar.name, j_envvar.value), indent=1)
 
 
 @app

@@ -34,8 +34,8 @@ class Shellmatic(object):
         TYPENAME = 'text'
 
         def __init__(self, text):
-            self.__text = text
-            assert isinstance(self.__text, unicode)
+            self.__text = text.decode('ascii')
+            CheckType(self.__text, unicode)
 
         def _cmpkey(self):
             '''
@@ -214,10 +214,9 @@ class Shellmatic(object):
 
         DEFAULT_FLAGS = {
             'TERM' : {TYPE_TEXT},
-            'PROMPT' : {TYPE_TEXT},
+            'PROMPT' : {TYPE_TEXT, FLAG_NODEP},
             'HOME' : {TYPE_TEXT},
             'PATH' : {TYPE_PATHLIST},
-            'PROMPT' : {FLAG_NODEP},
             # Linux
             'LD_LIBRARY_PATH' : {TYPE_PATHLIST},
             # Windows
@@ -242,9 +241,10 @@ class Shellmatic(object):
 
             # Set a type as a flag IF any type were set.
             if not self.flags.intersection(set(self.TYPES)):
-                self.flags.update(self._GetDefaultFlags(self.name, value))
+                new_flags = self._GetDefaultFlags(self.name, value)
+                self.flags.update(new_flags)
 
-            self.value = self._ValueIn(self.flags, value)
+            self.value = self._ValueIn(self.flags, self.name, value)
 
 
         @classmethod
@@ -269,6 +269,13 @@ class Shellmatic(object):
             flags = ':'.join(sorted(self.flags))
             name = self.name
             return '<EnvVar %(flags)s:%(name)s>' % locals()
+
+
+        @property
+        def fullname(self):
+            parts = list(sorted(self.flags))
+            parts.append(self.name)
+            return ':'.join(parts)
 
 
         def AsBatch(self, append=False):
@@ -313,7 +320,7 @@ class Shellmatic(object):
 
 
         @classmethod
-        def _ValueIn(cls, flags, value):
+        def _ValueIn(cls, flags, name, value):
             '''
             Format INcomming value to store it properly.
 
@@ -327,7 +334,7 @@ class Shellmatic(object):
                 return Shellmatic.PathValue(value)
             elif cls.TYPE_PATHLIST in flags:
                 return Shellmatic.PathListValue(value)
-            raise EnvVarTypeError(flags)
+            raise EnvVarTypeError('Variable %(name)s have no type defined on flags (%(flags)s).' % locals())
 
 
         @classmethod
@@ -365,7 +372,7 @@ class Shellmatic(object):
             An alternative to os.environ. Used for testing purposes.
         '''
         for i_name, i_value in environ.iteritems():
-            self.EnvironmentSet(i_name, i_value)
+            self.EnvironmentSet('_environ:' + i_name, i_value)
 
 
     def EnvironmentSet(self, name, value):

@@ -21,8 +21,8 @@
         "path:PROJECTS_DIR" : "x:",
 
         "text:VIRTUALENV" : "(no virtualenv)",
-        "text:nodep:PROMPT": "$e[36;2m$P$+$_$e[32;2m%%VIRTUALENV%%$e[0m $$$s",
-        "text:HOME" : "$HOMEDRIVE$HOMEPATH",
+        "text:nodep:PROMPT": "$e[33;1m$P$+$_$e[32;2m%%VIRTUALENV%%$e[0m $$$s",
+        "path:HOME" : "$HOMEDRIVE$HOMEPATH",
 
         "python:path:PYTHONHOME": "d:/shared/python27",
         "python:pathlist:PATH": [
