@@ -7,19 +7,8 @@ from __future__ import unicode_literals
 from ben10.execute import GetUnicodeArgv
 from ben10.filesystem import CreateFile
 from clikit.app import App
-from shellmatic import Shellmatic as _Shellmatic
+from shellmatic import LOGO, Shellmatic as _Shellmatic
 import os
-
-
-
-LOGO = r"""
-  ________ _           _    _                    _    _
- /   ____/| |_   ____ | |  | | _______  _____ __/ |_ |_| ____
- \____  \ |   \ /  _ \| |  | | \      \ \__  \\_  __\| |/  __\
- /       \| |  \\  __/| |__| |__| | |  \ / __ \_| |  | |\  \__
-/________/|_|  / \___/|___/|___/|_|_|\_//____  /|_|  |_| \___/
-             \/                              \/
-"""
 
 
 app = App('shellmatic', 'Automatic Shell.')
@@ -72,18 +61,8 @@ def List(console_, shellmatic_):
     """
     List current shellmatic configuration.
     """
-    console_.Print(LOGO)
     shellmatic_.LoadEnvironment()
-
-    by_flags = {}
-    for i_name, i_envvar in sorted(shellmatic_.environment.iteritems()):
-        flags = ':'.join(sorted(i_envvar.flags))
-        by_flags.setdefault(flags, []).append(i_envvar)
-
-    for i_flags, i_envvars in sorted(by_flags.iteritems()):
-        console_.Print('<green>%s</>' % i_flags)
-        for j_envvar in i_envvars:
-            console_.Item('<white>%s</>: %s' % (j_envvar.name, j_envvar.value), indent=1)
+    shellmatic_.PrintList(console_)
 
 
 @app
@@ -110,7 +89,6 @@ def Workon(console_, shellmatic_, config_, name, test=False):
 
     :param name: The project name.
     """
-
     # Obtain the new project and venv directories
     new_project_dir = shellmatic_.PathValue('$PROJECTS_DIR/%(name)s' % locals())
     new_venv_home = shellmatic_.PathValue('%(new_project_dir)s/.venv' % locals())
@@ -128,7 +106,6 @@ def Workon(console_, shellmatic_, config_, name, test=False):
         old_scripts_dir = shellmatic_.PathValue('%(old_venv_home)s/scripts' % locals())
 
         path = shellmatic_.PathListValue(os.environ['PATH'])
-        old_scripts_dir.ExpandVars()
         path.Remove(old_scripts_dir)
         shellmatic_.EnvironmentSet('_environ:PATH', path)
 
@@ -139,7 +116,7 @@ def Workon(console_, shellmatic_, config_, name, test=False):
     console_.Print('%s: Activating virtualenv.' % new_venv_home)
 
     # Load environment configuration
-    new_config_filename = os.path.expandvars(new_project_dir + '/' + config_.environment_filename)
+    new_config_filename = new_project_dir.path + '/' + config_.environment_filename
     if os.path.isfile(new_config_filename):
         shellmatic_.LoadJson(new_config_filename)
         console_.Print('%s: Loading configuration.' % new_config_filename)

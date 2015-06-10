@@ -9,6 +9,19 @@ import os
 
 
 
+LOGO = r"""
+  ________ _           _    _                    _    _
+ /   ____/| |_   ____ | |  | | _______  _____ __/ |_ |_| ____
+ \____  \ |   \ /  _ \| |  | | \      \ \__  \\_  __\| |/  __\
+ /       \| |  \\  __/| |__| |__| | |  \ / __ \_| |  | |\  \__
+/________/|_|  / \___/|___/|___/|_|_|\_//____  /|_|  |_| \___/
+             \/                              \/
+"""
+
+
+
+
+
 class EnvVarTypeError(TypeError):
     '''
     No variable type defined.
@@ -101,7 +114,7 @@ class Shellmatic(object):
 
         @property
         def path(self):
-            return self.__path
+            return os.path.expandvars(self.__path)
 
         def ExpandVars(self):
             self.__path = os.path.expandvars(self.__path)
@@ -126,7 +139,7 @@ class Shellmatic(object):
             return result
 
         def IsDir(self):
-            return os.path.isdir(os.path.expandvars(self.__path))
+            return os.path.isdir(self.path)
 
         @classmethod
         def _PlatformizeEnvVarsReferences(cls, value):
@@ -157,6 +170,12 @@ class Shellmatic(object):
             Implements Comparable._cmpkey
             '''
             return [i._cmpkey() for i in self.__pathlist]
+
+        def __unicode__(self):
+            return '\n'.join(map(unicode, self.__pathlist))
+
+        def __repr__(self):
+            return '<PathListValue %s>' % self.__unicode__()
 
         def ExpandVars(self):
             for i in self.pathlist:
@@ -357,6 +376,7 @@ class Shellmatic(object):
             return flags, name
 
     SECTION_ENVIRONMENT = 'environment'
+    ENVIRONMENT_FILENAME = '.shellmatic.json'
 
     def __init__(self):
         self.environment = odict()
@@ -430,14 +450,74 @@ class Shellmatic(object):
         return '\n'.join(result)
 
 
-    def LoadJson(self, filename):
+    def LoadJson(self, filename, flags=()):
         '''
         Loads the configuration from a JSON file.
 
         :param unicode filename:
         '''
         import json
-        data = json.loads(GetFileContents(filename))
 
+        data = json.loads(GetFileContents(filename))
         for i_name, i_value in data.get(self.SECTION_ENVIRONMENT, {}).iteritems():
-            self.EnvironmentSet(i_name, i_value)
+            name = ':'.join(sorted(flags) + [i_name])
+            self.EnvironmentSet(name, i_value)
+
+
+    def Workon(self, console_, name):
+        """
+        Activate a project's virtualenv.
+
+        The virtual environment must be placed on $PROJECTS_DIR/<name>/.venv
+
+        :param name: The project name.
+        """
+        # Obtain the new project and venv directories
+        new_project_dir = self.PathValue('$PROJECTS_DIR/%(name)s' % locals())
+        new_venv_home = self.PathValue('%(new_project_dir)s/.venv' % locals())
+        new_scripts_dir = self.PathValue('%(new_venv_home)s/scripts' % locals())
+
+        # Check if the new virtualenv really exists
+        if not new_venv_home.IsDir():
+            console_.Print('%s: Unable to find virtualenv.' % new_venv_home.path)
+            return
+
+        # Unload previous virtualenv (if any)
+        old_name = os.environ.get('VIRTUALENV')
+        if old_name and not old_name.startswith('('):
+            old_venv_home = self.PathValue('$PROJECTS_DIR/%(old_name)s/.venv' % locals())
+            old_scripts_dir = self.PathValue('%(old_venv_home)s/scripts' % locals())
+
+            path = self.PathListValue(os.environ['PATH'])
+            path.Remove(old_scripts_dir)
+            self.EnvironmentSet('_environ:PATH', path)
+
+        # Load new virtualenv
+        self.EnvironmentSet(name + ':venv:PATH', new_scripts_dir.path)
+        self.EnvironmentSet(name + ':venv:VIRTUALENV', name)
+        self.EnvironmentSet(name + ':venv:PYTHONHOME', new_venv_home.path)
+        console_.Print('%s: Activating virtualenv.' % new_venv_home.path)
+
+        # Load environment configuration
+        new_config_filename = new_project_dir.path + '/' + self.ENVIRONMENT_FILENAME
+        if os.path.isfile(new_config_filename):
+            self.LoadJson(new_config_filename, flags=(name,))
+            console_.Print('%s: Loading configuration.' % new_config_filename)
+
+        # Change directory to the project.
+        #envout_.Call('cdd %(new_project_dir)s' % locals())
+
+
+    def PrintList(self, console_, logo=True):
+        if logo:
+            console_.Print(LOGO)
+
+        by_flags = {}
+        for i_name, i_envvar in sorted(self.environment.iteritems()):
+            flags = ':'.join(sorted(i_envvar.flags))
+            by_flags.setdefault(flags, []).append(i_envvar)
+
+        for i_flags, i_envvars in sorted(by_flags.iteritems()):
+            console_.Print('<green>%s</>' % i_flags)
+            for j_envvar in i_envvars:
+                console_.Item('<white>%s</>: %s' % (j_envvar.name, j_envvar.value), indent=1)

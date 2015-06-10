@@ -1,6 +1,8 @@
 from __future__ import unicode_literals
+from ben10.filesystem import CreateDirectory, CreateFile
 from ben10.foundation.string import Dedent
 from ben10.foundation.types_ import Null
+from clikit.console import Console, BufferedConsole
 from shellmatic import Shellmatic
 import os
 import pytest
@@ -67,14 +69,14 @@ def testLoadEnvironment():
     expected = [
         (
             'BYTES',
-            {'path'},
+            {'_environ', 'path'},
             [
                 'alpha'
             ]
         ),
         (
             'PATH',
-            {'pathlist'},
+            {'_environ', 'pathlist'},
             [
                 'x:/ben10/source/python',
                 'x:/eladrin/bin',
@@ -83,7 +85,7 @@ def testLoadEnvironment():
         ),
         (
             'PATHLIST',
-            {'pathlist'},
+            {'_environ', 'pathlist'},
             [
                 'x:/alpha',
                 'c:/windows',
@@ -177,3 +179,49 @@ def testPathValueAsBatch():
     assert Shellmatic.PathValue('x:/Alpha\\Bravo/CHARLIE').AsBatch() == 'x:\\alpha\\bravo\\charlie'
     assert Shellmatic.PathValue('$shared_dir/alpha').AsBatch() == '%SHARED_DIR%\\alpha'
     assert Shellmatic.PathValue('$python_home;$python_home/scripts').AsBatch() == '%PYTHON_HOME%;%PYTHON_HOME%\\scripts'
+
+
+def testWorkon(monkeypatch, embed_data, shutils=None):
+    console = BufferedConsole()
+
+    monkeypatch.setenv('PROJECTS_DIR', embed_data.GetDataDirectory())
+    monkeypatch.delenv('VIRTUALENV', raising=False)
+
+    CreateDirectory(embed_data['alpha/.venv'])
+    CreateFile(
+        embed_data['alpha/.shellmatic.json'],
+        Dedent(
+            '''
+            {
+                "environment": {
+                    "ALPHA_DIR": "x:/alpha",
+                    "PATH": ["$ALPHA_DIR/bin"],
+                    "PYTHONPATH": ["$ALPHA_DIR"]
+                }
+            }
+            '''
+        )
+    )
+
+    s = Shellmatic()
+    s.Workon(console, 'alpha')
+    s.PrintList(console, logo=False)
+
+    assert console.GetOutput() == Dedent(
+        '''
+            test_shellmatic__testWorkon/alpha/.venv: Activating virtualenv.
+            test_shellmatic__testWorkon/alpha/.shellmatic.json: Loading configuration.
+            alpha:path
+                - ALPHA_DIR: x:/alpha
+            alpha:path:venv
+                - PYTHONHOME: test_shellmatic__testWorkon/alpha/.venv
+            alpha:pathlist
+                - PATH: $ALPHA_DIR/bin
+                - PYTHONPATH: $ALPHA_DIR
+            alpha:pathlist:venv
+                - PATH: test_shellmatic__testWorkon/alpha/.venv/scripts
+            alpha:text:venv
+                - VIRTUALENV: alpha
+
+        '''
+    )
