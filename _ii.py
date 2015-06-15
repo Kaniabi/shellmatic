@@ -1,11 +1,11 @@
 #!/bin/env python
 """
-Shellmatic
-
+"I'm in" environment control utility.
 """
 from __future__ import unicode_literals
 from ben10.execute import GetUnicodeArgv
 from ben10.filesystem import CreateFile
+from ben10.foundation.string import Dedent
 from clikit.app import App
 from shellmatic import LOGO, Shellmatic as _Shellmatic
 import os
@@ -28,7 +28,11 @@ def Config():
             return os.environ.get('SHELLMATIC_BATCH', '$TEMP/.shellmatic.bat')
 
         @property
-        def environment_filename(self):
+        def user_filename(self):
+            return '$APPDATA/.shellmatic.json'
+
+        @property
+        def project_filename(self):
             return '.eladrin.json'
 
     return _Config()
@@ -57,11 +61,18 @@ def Reset(console_, shellmatic_, config_, shared_dir=None, projects_dir=None, te
 
 
 @app
-def List(console_, shellmatic_):
+def List(console_, shellmatic_, config_):
     """
     List current shellmatic configuration.
     """
-    shellmatic_.LoadEnvironment()
+    filename = shellmatic_.PathValue(config_.user_filename)
+
+    if filename.IsFile():
+        shellmatic_.LoadJson(filename.path)
+    else:
+        shellmatic_.LoadEnvironment()
+        shellmatic_.SaveJson(filename.path)
+
     shellmatic_.PrintList(console_)
 
 
@@ -72,6 +83,24 @@ def Load(console_, shellmatic_, config_, filename, test=False):
     """
     console_.Print(LOGO)
     shellmatic_.LoadJson(filename)
+
+    batch_contents = shellmatic_.AsBatch(console_)
+    if test:
+        console_.Print(batch_contents, indent=1)
+    else:
+        CreateFile(config_.batch_filename, batch_contents)
+
+
+@app
+def Set(console_, shellmatic_, config_, name, value, test=False):
+    """
+    Sets an environment variable.
+
+    :param name:
+    :param value:
+    """
+    shellmatic_.EnvironmentSet(name, value)
+    shellmatic_.PrintList(console_)
 
     batch_contents = shellmatic_.AsBatch(console_)
     if test:
@@ -116,7 +145,7 @@ def Workon(console_, shellmatic_, config_, name, test=False):
     console_.Print('%s: Activating virtualenv.' % new_venv_home)
 
     # Load environment configuration
-    new_config_filename = new_project_dir.path + '/' + config_.environment_filename
+    new_config_filename = new_project_dir.path + '/' + config_.project_filename
     if os.path.isfile(new_config_filename):
         shellmatic_.LoadJson(new_config_filename)
         console_.Print('%s: Loading configuration.' % new_config_filename)

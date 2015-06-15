@@ -54,6 +54,13 @@
         ],
         "eladrin:pathlist:PATH": [
             "$PROJECTS_DIR/eladrin/bin"
+        ],
+
+        "shellmatic:pathlist:PYTHONPATH": [
+            "$PROJECTS_DIR/shellmatic"
+        ],
+        "shellmatic:pathlist:PATH": [
+            "$PROJECTS_DIR/shellmatic"
         ]
     }
 }

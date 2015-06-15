@@ -1,5 +1,5 @@
 from __future__ import unicode_literals
-from ben10.filesystem import GetFileContents, NormalizePath, StandardizePath
+from ben10.filesystem import GetFileContents, NormalizePath, StandardizePath, CreateFile
 from ben10.foundation.decorators import Comparable
 from ben10.foundation.odict import odict
 from ben10.foundation.reraise import Reraise
@@ -140,6 +140,12 @@ class Shellmatic(object):
 
         def IsDir(self):
             return os.path.isdir(self.path)
+
+        def IsFile(self):
+            return os.path.isfile(self.path)
+
+        def CreateFile(self, contents, encoding=None):
+            return CreateFile(self.path, contents, encoding=encoding)
 
         @classmethod
         def _PlatformizeEnvVarsReferences(cls, value):
@@ -458,10 +464,36 @@ class Shellmatic(object):
         '''
         import json
 
-        data = json.loads(GetFileContents(filename))
+        data = json.loads(GetFileContents(filename, encoding='UTF-8'))
         for i_name, i_value in data.get(self.SECTION_ENVIRONMENT, {}).iteritems():
             name = ':'.join(sorted(flags) + [i_name])
             self.EnvironmentSet(name, i_value)
+
+
+    def SaveJson(self, filename, flags=()):
+        '''
+        Saves the configuration in a JSON file.
+
+        :param unicode filename:
+        '''
+        import json
+
+        environment = {
+            i : v.value.AsList()
+            for (i,v) in
+            self.environment.iteritems()
+        }
+        data = {
+            'environment' : environment,
+        }
+        contents = json.dumps(
+            data,
+            sort_keys=True,
+            indent=4,
+            separators=(',', ': '),
+            ensure_ascii=False
+        ).decode('UTF-8')
+        CreateFile(filename, contents, encoding='UTF-8')
 
 
     def Workon(self, console_, name):
