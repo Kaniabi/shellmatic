@@ -2,29 +2,26 @@
     "aliases": {
         "vim:windows:path:vim": "$SHARED_DIR/vim/vim74/gvim.exe",
         "vim:windows:path:vi": "$SHARED_DIR/vim/vim74/gvim.exe",
-
-        "deltree": "del /sxzqe",
-        "clear": "cls",
-        "cp": "copy",
-        "mv": "move",
-        "x": "start explorer"
+        "windows:deltree": "del /sxzqe",
+        "windows:clear": "cls",
+        "windows:cp": "copy",
+        "windows:mv": "move",
+        "windows:x": "start explorer",
+        "windows:cat": "type"
     },
-    "flags": [
-        "python"
-    ],
     "calls": {
         "git:git.lg" : "git config --global alias.lg \"log --oneline --graph --decorate -n20\"",
         "git:git.st" : "git config --global alias.st \"status -b -s\""
     },
     "environment": {
         "path:SHARED_DIR" : "d:/shared",
-        "path:PROJECTS_DIR" : "x:",
+        "path:PROJECTS_DIR" : "d:/projects",
 
         "text:VIRTUALENV" : "(no virtualenv)",
         "text:nodep:PROMPT": "$e[33;1m$P$+$_$e[32;2m%%VIRTUALENV%%$e[0m $$$s",
         "path:HOME" : "$HOMEDRIVE$HOMEPATH",
 
-        "python:path:PYTHONHOME": "d:/shared/python27",
+        "python:path:PYTHONHOME": "d:/shared/python34",
         "python:pathlist:PATH": [
           "$PYTHONHOME",
           "$PYTHONHOME/scripts"
@@ -62,5 +59,29 @@
         "shellmatic:pathlist:PATH": [
             "$PROJECTS_DIR/shellmatic"
         ]
-    }
+    },
+    "flags" : [
+        "text:TERM",
+        "text:nodep:PROMPT",
+        "text:HOME",
+        "pathlist:PATH",
+        "linux:pathlist:LD_LIBRARY_PATH",
+        "windows:text:NUMBER_OF_PROCESSORS",
+        "windows:text:PROCESSOR_ARCHITECTURE",
+        "windows:text:PROCESSOR_IDENTIFIER",
+        "windows:text:PROCESSOR_LEVEL",
+        "windows:text:PROCESSOR_REVISION",
+        "windows:text:OS",
+        "windows:text:USERNAME",
+        "windows:text:USERDOMAIN",
+        "windows:text:PATHEXT",
+        "windows:text:TCMDVER",
+        "windows:text:USERDOMAIN_ROAMINGPROFILE",
+        "windows:text:FPS_BROWSER_APP_PROFILE_STRING",
+        "windows:text:FPS_BROWSER_USER_PROFILE_STRING",
+        "windows:text:ASL.LOG",
+        "windows:text:FP_NO_HOST_CHECK",
+        "shellmatic:text:VIRTUALENV",
+        "python:pathlist:PYTHONPATH"
+    ]
 }

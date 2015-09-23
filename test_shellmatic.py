@@ -2,10 +2,11 @@ from __future__ import unicode_literals
 from ben10.filesystem import CreateDirectory, CreateFile
 from ben10.foundation.string import Dedent
 from ben10.foundation.types_ import Null
-from clikit.console import Console, BufferedConsole
+from clikit.console import BufferedConsole
 from shellmatic import Shellmatic
 import os
 import pytest
+import six
 
 
 
@@ -65,7 +66,7 @@ def testLoadEnvironment():
 
     s.LoadEnvironment(environ)
 
-    obtained = sorted([(i.name, i.flags, i.value.AsList()) for i in s.environment.itervalues()])
+    obtained = sorted([(i.name, i.flags, i.value.AsList()) for i in sorted(six.itervalues(s.environment))])
     expected = [
         (
             'BYTES',
@@ -99,7 +100,7 @@ def testEnvironmentSet():
     s = Shellmatic()
 
     s.EnvironmentSet('text:ALPHA', 'Alpha')
-    obtained = sorted([(i.name, i.flags, i.value.AsList()) for i in s.environment.itervalues()])
+    obtained = sorted([(i.name, i.flags, i.value.AsList()) for i in six.itervalues(s.environment)])
     expected = [
         (
             'ALPHA',
@@ -112,7 +113,7 @@ def testEnvironmentSet():
     assert obtained == expected
 
     s.EnvironmentSet('path:BRAVO', r'x:/Bravo\directory/FOLDER')
-    obtained = sorted([(i.name, i.flags, i.value.AsList()) for i in s.environment.itervalues()])
+    obtained = sorted([(i.name, i.flags, i.value.AsList()) for i in six.itervalues(s.environment)])
     expected += [
         (
             'BRAVO',
@@ -125,7 +126,7 @@ def testEnvironmentSet():
     assert obtained == expected
 
     s.EnvironmentSet('pathlist:CHARLIE', r'x:/Charlie;c:\Windows;a:\Install')
-    obtained = sorted([(i.name, i.flags, i.value.AsList()) for i in s.environment.itervalues()])
+    obtained = sorted([(i.name, i.flags, i.value.AsList()) for i in six.itervalues(s.environment)])
     expected += [
         (
             'CHARLIE',
@@ -209,19 +210,22 @@ def testWorkon(monkeypatch, embed_data, shutils=None):
 
     assert console.GetOutput() == Dedent(
         '''
-            test_shellmatic__testWorkon/alpha/.venv: Activating virtualenv.
-            test_shellmatic__testWorkon/alpha/.shellmatic.json: Loading configuration.
+            {embed_dir}/alpha/.venv: Activating virtualenv.
+            {embed_dir}/alpha/.shellmatic.json: Loading configuration.
             alpha:path
                 - ALPHA_DIR: x:/alpha
             alpha:path:venv
-                - PYTHONHOME: test_shellmatic__testWorkon/alpha/.venv
+                - PYTHONHOME: {embed_dir}/alpha/.venv
             alpha:pathlist
-                - PATH: $ALPHA_DIR/bin
-                - PYTHONPATH: $ALPHA_DIR
+                - PATH:\\b
+                   $ALPHA_DIR/bin
+                - PYTHONPATH:\\b
+                   $ALPHA_DIR
             alpha:pathlist:venv
-                - PATH: test_shellmatic__testWorkon/alpha/.venv/scripts
+                - PATH:\\b
+                   {embed_dir}/alpha/.venv/scripts
             alpha:text:venv
                 - VIRTUALENV: alpha
 
-        '''
+        '''.format(embed_dir=embed_data.GetDataDirectory()).replace('\\b', ' ')
     )

@@ -1,0 +1,10 @@
+{
+  "environment" : {
+    "pathlist:PATH" : [
+      "$PROJECTS_DIR/shellmatic"
+    ],
+    "pathlist:PYTHONPATH" : [
+      "$PROJECTS_DIR/shellmatic"
+    ]
+  }
+}

@@ -6,7 +6,7 @@ from ben10.foundation.reraise import Reraise
 from ben10.foundation.types_ import CheckType
 import ntpath
 import os
-
+import six
 
 
 LOGO = r"""
@@ -47,8 +47,9 @@ class Shellmatic(object):
         TYPENAME = 'text'
 
         def __init__(self, text):
-            self.__text = text.decode('ascii')
-            CheckType(self.__text, unicode)
+            CheckType(text, six.text_type)
+            self.__text = text # .decode('ascii')
+            CheckType(self.__text, six.text_type)
 
         def _cmpkey(self):
             '''
@@ -56,17 +57,23 @@ class Shellmatic(object):
             '''
             return self.__text
 
-        def __unicode__(self):
-            return self.__text
+        def __str__(self):
+            return self.AsPrint()
 
         def __repr__(self):
-            return '<TextValue %s>' % self.__unicode__()
+            return '<TextValue %s>' % self.__str__()
 
         def ExpandVars(self):
             self.__text = os.path.expandvars(self.__text)
 
         def AsList(self):
             return [self.__text]
+
+        def AsJson(self):
+            return self.__text
+
+        def AsPrint(self):
+            return self.__text
 
         def AsBatch(self, expandvars=False, nodep=False):
             '''
@@ -98,7 +105,7 @@ class Shellmatic(object):
 
         def __init__(self, path):
             self.__path = StandardizePath(path, strip=True)
-            assert isinstance(self.__path, unicode)
+            assert isinstance(self.__path, six.text_type)
 
         def _cmpkey(self):
             '''
@@ -106,11 +113,11 @@ class Shellmatic(object):
             '''
             return StandardizePath(ntpath.normcase(self.__path))
 
-        def __unicode__(self):
-            return self.__path
+        def __str__(self):
+            return self.AsPrint()
 
         def __repr__(self):
-            return '<PathValue %s>' % self.__unicode__()
+            return '<PathValue %s>' % self.__str__()
 
         @property
         def path(self):
@@ -121,6 +128,12 @@ class Shellmatic(object):
 
         def AsList(self):
             return [self.__path.lower()]
+
+        def AsJson(self):
+            return self.__path.lower()
+
+        def AsPrint(self):
+            return self.__path
 
         def AsBatch(self, expandvars=False, nodep=False):
             '''
@@ -177,11 +190,12 @@ class Shellmatic(object):
             '''
             return [i._cmpkey() for i in self.__pathlist]
 
-        def __unicode__(self):
-            return '\n'.join(map(unicode, self.__pathlist))
+        def __str__(self):
+            return '\n'.join(map(str, self.__pathlist))
 
         def __repr__(self):
-            return '<PathListValue %s>' % self.__unicode__()
+            return '<PathListValue %s>' % self.__str__()
+
 
         def ExpandVars(self):
             for i in self.pathlist:
@@ -193,6 +207,12 @@ class Shellmatic(object):
                 result += i.AsList()
             return result
 
+        def AsJson(self):
+            return self.AsList()
+
+        def AsPrint(self, prefix='\n   '):
+            return prefix + prefix.join(map(six.text_type, self.__pathlist))
+
         def AsBatch(self, expandvars=False, nodep=False):
             '''
             :param bool expandvars:
@@ -203,7 +223,7 @@ class Shellmatic(object):
             return ntpath.pathsep.join(result)
 
         def Remove(self, value):
-            if isinstance(value, unicode):
+            if isinstance(value, six.text_type):
                 value = Shellmatic.PathValue(value)
             CheckType(value, Shellmatic.PathValue)
 
@@ -211,7 +231,7 @@ class Shellmatic(object):
             try:
                 new_pathlist.remove(value)
             except ValueError as e:
-                pathlist_items = '\n  - '.join(map(unicode,new_pathlist))
+                pathlist_items = '\n  - '.join(map(str, new_pathlist))
                 Reraise(
                     e,
                     'While trying to remove value "%s" from path-list:\n  - %s' % (
@@ -353,12 +373,15 @@ class Shellmatic(object):
             '''
             if isinstance(value, Shellmatic.ValueType):
                 return value
-            if cls.TYPE_TEXT in flags:
-                return Shellmatic.TextValue(value)
-            elif cls.TYPE_PATH in flags:
-                return Shellmatic.PathValue(value)
-            elif cls.TYPE_PATHLIST in flags:
-                return Shellmatic.PathListValue(value)
+            try:
+                if cls.TYPE_TEXT in flags:
+                    return Shellmatic.TextValue(value)
+                elif cls.TYPE_PATH in flags:
+                    return Shellmatic.PathValue(value)
+                elif cls.TYPE_PATHLIST in flags:
+                    return Shellmatic.PathListValue(value)
+            except Exception as e:
+                Reraise(e, 'While getting value for "%s"' % name)
             raise EnvVarTypeError('Variable %(name)s have no type defined on flags (%(flags)s).' % locals())
 
 
@@ -370,9 +393,10 @@ class Shellmatic(object):
             :param uncode name:
                 A name containing flags. Eg.: flag:flag2:name
             '''
-            if isinstance(name, str):
+            assert name is not None
+            if isinstance(name, bytes):
                 name = name.decode('UTF-8')
-            assert isinstance(name, unicode)
+            assert isinstance(name, six.text_type)
             flags = set()
             if ':' in name:
                 name_parts = name.split(':')
@@ -390,14 +414,22 @@ class Shellmatic(object):
         self.calls = odict()
 
 
-    def LoadEnvironment(self, environ=os.environ):
+    def LoadEnvironment(self, environ=None):
         '''
         Loads environment from the current environment.
 
         :param dict|None environ:
             An alternative to os.environ. Used for testing purposes.
         '''
-        for i_name, i_value in environ.iteritems():
+        def decode(text, encoding='ascii'):
+            if isinstance(text, six.text_type):
+                return text
+            return text.decode(encoding)
+
+        if environ is None:
+            environ = os.environ
+        environ = {decode(i) : decode(j) for (i,j) in six.iteritems(environ)}
+        for i_name, i_value in six.iteritems(environ):
             self.EnvironmentSet('_environ:' + i_name, i_value)
 
 
@@ -440,13 +472,14 @@ class Shellmatic(object):
         # Groups env-vars by name
         sources = {}
         envvars = {}
-        for i_envvar in self.environment.itervalues():
+        for i_envvar in six.itervalues(self.environment):
             sources.setdefault(i_envvar.name, set()).update(i_envvar.GetDependencies())
             envvars.setdefault(i_envvar.name, []).append(i_envvar)
+        sources = sorted(sources.items())
 
         result = []
         seen = set()
-        for i_name in TopologicalSort(sorted(sources.items())):
+        for i_name in TopologicalSort(sources):
             for j_envvar in envvars[i_name]:
                 do_append = append and self.EnvVar.TYPE_PATHLIST in j_envvar.flags
                 do_append = do_append or j_envvar.name in seen
@@ -463,11 +496,19 @@ class Shellmatic(object):
         :param unicode filename:
         '''
         import json
+        from collections import OrderedDict
 
-        data = json.loads(GetFileContents(filename, encoding='UTF-8'))
-        for i_name, i_value in data.get(self.SECTION_ENVIRONMENT, {}).iteritems():
-            name = ':'.join(sorted(flags) + [i_name])
-            self.EnvironmentSet(name, i_value)
+        try:
+            data = json.loads(
+                GetFileContents(filename, encoding='UTF-8'),
+                object_pairs_hook=OrderedDict
+            )
+            items = data.get(self.SECTION_ENVIRONMENT, {})
+            for i_name, i_value in six.iteritems(items):
+                name = ':'.join(sorted(flags) + [i_name])
+                self.EnvironmentSet(name, i_value)
+        except Exception as e:
+            Reraise(e, 'While loading file "%s"' % filename)
 
 
     def SaveJson(self, filename, flags=()):
@@ -479,9 +520,9 @@ class Shellmatic(object):
         import json
 
         environment = {
-            i : v.value.AsList()
+            i : v.value.AsJson()
             for (i,v) in
-            self.environment.iteritems()
+            six.iteritems(self.environment)
         }
         data = {
             'environment' : environment,
@@ -492,7 +533,7 @@ class Shellmatic(object):
             indent=4,
             separators=(',', ': '),
             ensure_ascii=False
-        ).decode('UTF-8')
+        )
         CreateFile(filename, contents, encoding='UTF-8')
 
 
@@ -511,7 +552,7 @@ class Shellmatic(object):
 
         # Check if the new virtualenv really exists
         if not new_venv_home.IsDir():
-            console_.Print('%s: Unable to find virtualenv.' % new_venv_home.path)
+            console_.Print('{}: Unable to find virtualenv.'.format(new_venv_home.path))
             return
 
         # Unload previous virtualenv (if any)
@@ -545,11 +586,11 @@ class Shellmatic(object):
             console_.Print(LOGO)
 
         by_flags = {}
-        for i_name, i_envvar in sorted(self.environment.iteritems()):
+        for i_name, i_envvar in sorted(six.iteritems(self.environment)):
             flags = ':'.join(sorted(i_envvar.flags))
             by_flags.setdefault(flags, []).append(i_envvar)
 
-        for i_flags, i_envvars in sorted(by_flags.iteritems()):
+        for i_flags, i_envvars in sorted(six.iteritems(by_flags)):
             console_.Print('<green>%s</>' % i_flags)
             for j_envvar in i_envvars:
-                console_.Item('<white>%s</>: %s' % (j_envvar.name, j_envvar.value), indent=1)
+                console_.Item('<white>%s</>: %s' % (j_envvar.name, j_envvar.value.AsPrint()), indent=1)

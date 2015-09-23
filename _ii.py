@@ -5,7 +5,6 @@
 from __future__ import unicode_literals
 from ben10.execute import GetUnicodeArgv
 from ben10.filesystem import CreateFile
-from ben10.foundation.string import Dedent
 from clikit.app import App
 from shellmatic import LOGO, Shellmatic as _Shellmatic
 import os
@@ -65,12 +64,16 @@ def List(console_, shellmatic_, config_):
     """
     List current shellmatic configuration.
     """
-    filename = shellmatic_.PathValue(config_.user_filename)
+    console_.Print('Listing shellmatic variables.')
 
+    filename = shellmatic_.PathValue(config_.user_filename)
     if filename.IsFile():
+        console_.Print('Loading user database: "%s"' % filename.path)
         shellmatic_.LoadJson(filename.path)
     else:
+        console_.Print('Loading environment.')
         shellmatic_.LoadEnvironment()
+        console_.Print('Saving user database: %s' % filename.path)
         shellmatic_.SaveJson(filename.path)
 
     shellmatic_.PrintList(console_)
