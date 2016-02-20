@@ -2,6 +2,7 @@
     "aliases": {
         "vim:windows:path:vim": "$SHARED_DIR/vim/vim74/gvim.exe",
         "vim:windows:path:vi": "$SHARED_DIR/vim/vim74/gvim.exe",
+        "vim:windows:path:vi": "$SHARED_DIR/vim/vim74/gvim.mingw/exe",
         "windows:deltree": "del /sxzqe",
         "windows:clear": "cls",
         "windows:cp": "copy",
@@ -14,6 +15,10 @@
         "git:git.st" : "git config --global alias.st \"status -b -s\""
     },
     "environment": {
+        "system:pathlist:PATH": [
+          "c:/windows/system32"
+        ],
+
         "path:SHARED_DIR" : "d:/shared",
         "path:PROJECTS_DIR" : "d:/projects",
 
@@ -21,15 +26,26 @@
         "text:nodep:PROMPT": "$e[33;1m$P$+$_$e[32;2m%%VIRTUALENV%%$e[0m $$$s",
         "path:HOME" : "$HOMEDRIVE$HOMEPATH",
 
-        "python:path:PYTHONHOME": "d:/shared/python34",
+        "python:path:PYTHONHOME": "d:/shared/python27",
         "python:pathlist:PATH": [
           "$PYTHONHOME",
           "$PYTHONHOME/scripts"
         ],
         "python:text:.py" : "python",
 
+        "go:pathlist:PATH": [
+          "$SHARED_DIR/go/bin"
+        ],
+        "go:path:GOROOT": "$SHARED_DIR/go",
+        "go:path:GOPATH": "$PROJECTS_DIR/go",
+
+        "otto:pathlist:PATH": [
+          "$SHARED_DIR/otto"
+        ],
+
         "git:pathlist:PATH": [
-          "$SHARED_DIR/git/bin"
+          "$SHARED_DIR/git/bin",
+          "$SHARED_DIR/git/usr/bin"
         ],
         "git:text:TERM" : "msys",
 
@@ -58,7 +74,40 @@
         ],
         "shellmatic:pathlist:PATH": [
             "$PROJECTS_DIR/shellmatic"
+        ],
+
+        "node:pathlist:PATH": [
+            "$SHARED_DIR/nodejs",
+            "$APPDATA/npm"
+        ],
+
+        "jdk:pathlist:PATH": [
+            "$SHARED_DIR/jdk7/bin"
+        ],
+
+        "antlr:pathlist:CLASSPATH": [
+            "$SHARED_DIR/antlr/antlr-4.5.1-complete.jar"
+        ],
+
+        "virtualbox:path:VBOX_INSTALL_PATH": "$SHARED_DIR/virtualbox",
+        "virtualbox:path:VBOX_HOME": "d:/virtualbox",
+        "virtualbox:pathlist:PATH": [
+            "$SHARED_DIR/virtualbox"
+        ],
+
+        "virtualbox:path:VAGRANT_HOME": "d:/vagrant",
+        "vagrant:pathlist:PATH": [
+            "$SHARED_DIR/vagrant/bin"
+        ],
+
+        "ruby:RI_DEVKIT" : "$SHARED_DIR/ruby",
+
+        "ruby:pathlist:PATH": [
+          "$SHARED_DIR/ruby/bin",
+          "$SHARED_DIR/devkit/bin",
+          "$SHARED_DIR/devkit/mingw/bin"
         ]
+
     },
     "flags" : [
         "text:TERM",

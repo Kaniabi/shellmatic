@@ -381,7 +381,7 @@ class Shellmatic(object):
                 elif cls.TYPE_PATHLIST in flags:
                     return Shellmatic.PathListValue(value)
             except Exception as e:
-                Reraise(e, 'While getting value for "%s"' % name)
+                raise e  # 'While getting value for "%s"' % name)
             raise EnvVarTypeError('Variable %(name)s have no type defined on flags (%(flags)s).' % locals())
 
 
@@ -508,7 +508,7 @@ class Shellmatic(object):
                 name = ':'.join(sorted(flags) + [i_name])
                 self.EnvironmentSet(name, i_value)
         except Exception as e:
-            Reraise(e, 'While loading file "%s"' % filename)
+            raise e
 
 
     def SaveJson(self, filename, flags=()):
